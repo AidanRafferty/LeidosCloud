@@ -1,0 +1,29 @@
+---
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+  - repo: https://github.com/ambv/black/
+    rev: 19.10b0
+    hooks:
+      - id: black
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.20.0
+    hooks:
+      - id: yamllint
+        args: ['-d {extends: relaxed, rules: {line-length: disable}}', '-s']
+  - repo: https://github.com/mlsgrnt/js-beautify-pre-commit
+    rev: master
+    hooks:
+      - id: js-beautify
+        args: [
+          '--replace',
+          '--end-with-newline',
+          '--max-preserve-newlines=2',
+          '--templating django'
+        ]

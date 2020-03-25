@@ -1,0 +1,108 @@
+-
+  name: 'Configure Server'
+  hosts: cloudhost
+  roles:
+    -
+      role: samdoran.caddy
+      become: yes
+  gather_facts: true
+  tasks:
+    -
+      name: 'Creating static files directory'
+      become: true
+      file:
+        path: /usr/share/caddy/static
+        state: directory
+        owner: "{{ ansible_ssh_user }}"
+        group: "{{ ansible_ssh_user }}"
+        mode: u=rwx,g=r,o=r
+        recurse: yes
+    -
+      name: 'Adding caddy configuration file'
+      become: true
+      template:
+        src: "{{ playbook_dir }}/templates/cloud.conf.j2"
+        dest: /etc/caddy/caddy.conf
+    -
+      name: Removing default caddy index html
+      become: true
+      file:
+        # There should be a way to get this dynamically
+        path: /usr/share/caddy/index.html
+        state: absent
+    -
+      name: Finding Duck ID in database
+      retries: 2
+      shell: sqlite3 db.sqlite3 "SELECT "_rowid_" FROM "main"."leidoscloud_api" WHERE "name" LIKE '%DuckDNS%' ESCAPE '\' ORDER BY "_rowid_" ASC LIMIT 0, 49999;"
+      register: duck_id
+      until: duck_id is succeeded
+      args:
+        chdir: "/home/{{ ansible_ssh_user }}/storm/leidoscloud/"
+    -
+      name: Loading Duck Token
+      retries: 2
+      shell: sqlite3 db.sqlite3 "SELECT "value" FROM "main"."leidoscloud_key" WHERE "name" LIKE '%token%' ESCAPE '\' AND "provider_id" LIKE '%{{ duck_id.stdout }}%' ESCAPE '\';"
+      register: token
+      until: token is succeeded
+      args:
+        chdir: "/home/{{ ansible_ssh_user }}/storm/leidoscloud/"
+    -
+      name: 'Setting duck facts'
+      set_fact:
+        duck_token: '{{ token.stdout }}'
+    -
+      name: 'Updating DuckDNS'
+      retries: 10
+      delay: 5
+      register: duck_updated
+      until: (duck_updated.status_code is defined) and (duck_updated.status_code in [200])
+      changed_when: false
+      get_url:
+        url: 'https://www.duckdns.org/update?domains=leidoscloud&token={{ duck_token }}&ip='
+        dest: '/home/{{ ansible_ssh_user }}/duck.log'
+        mode: '0660'
+    -
+      name: 'Launching Django via gunicorn'
+      shell: '/home/{{ ansible_ssh_user }}/.local/bin/gunicorn leidoscloud.wsgi -b 127.0.0.1:8000 --timeout 6000 --daemon'
+      args:
+        chdir: '/home/{{ ansible_ssh_user }}/storm/leidoscloud'
+    -
+      name: 'Waiting for Django to launch properly'
+      pause:
+        seconds: 6 # apps.py ready method might trigger twice if this is called too soon after gunicorn start
+    -
+      name: 'Collecting static files for caddy'
+      # Should be django_manage but that is causing issues because of the python path
+      shell: 'python3 /home/{{ ansible_ssh_user }}/storm/leidoscloud/manage.py collectstatic --noinput'
+    -
+      name: Fixing permissions on static directory
+      become: true
+      file:
+        path: /usr/share/caddy/
+        state: directory
+        recurse: yes
+        owner: "{{ ansible_ssh_user }}"
+        group: "{{ ansible_ssh_user }}"
+        # This is a nasty hack but everything else breaks... TO ask tom!
+        mode: '0777'
+    -
+      name: Adding django-cron to crontab
+      cron:
+        name: "django-cron"
+        # 10 minutes is reasonable, as is the most often the django-cron will be set to run
+        minute: "*/10"
+        job: "cd /home/{{ ansible_ssh_user }}/storm/leidoscloud && python3 manage.py runcrons"
+    -
+      # This is a bad hack. Should somehow call the ansible-caddy handler. Server must be restarted to use new config file.
+      name: Restarting Caddy
+      become: true
+      systemd:
+        name: "{{ caddy_service_name }}"
+        state: restarted
+    -
+      name: 'Fixing the MTU size on Google Cloud hosts'
+      become: true
+      # Google cloud interface name is always ens4
+      # https://cloud.google.com/compute/docs/internal-dns
+      shell: "ip link set dev ens4 mtu 1350"
+      when: target_host == "google"

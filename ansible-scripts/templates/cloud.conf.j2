@@ -1,0 +1,9 @@
+#leidoscloud.duckdns.org {
+leidoscloud.duckdns.org:80 {
+	root /usr/share/caddy/
+
+	proxy / localhost:8000 {
+		except /static
+		transparent
+	}
+}

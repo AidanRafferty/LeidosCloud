@@ -1,0 +1,22 @@
+---
+- name: Installing Google requirements
+  pip:
+    name:
+      - requests>=2.18.4
+      - google-auth>=1.6.3
+    state: latest
+    executable: "{{ pip | default('pip3') }}"
+
+- name: Getting Google creds
+  set_fact:
+    credentials_file_path: "{{ playbook_dir }}/secrets/gce.json"
+
+- name: Loading Google creds
+  set_fact:
+    credentials_file_lookup: "{{ lookup('file', '{{ credentials_file_path }}') }}"
+
+- name: Setting facts from gce.json
+  set_fact:
+    service_account_email: "{{ credentials_file_lookup.client_email }}"
+    project_id: "{{ credentials_file_lookup.project_id }}"
+    project_name: "leidoscloud"

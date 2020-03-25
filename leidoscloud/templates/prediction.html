@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load leidoscloud_template_tags %}
+
+{% block title_block %}
+CloudSurf Predictions
+{% endblock %}
+
+{% block heading_block %}
+CloudSurf Predictions
+{% endblock %}
+
+{% block body_block %}
+
+<h2>Expected Best Provider</h2>
+<div class="table-responsive-lg">
+    <table class="table table-striped ">
+        {% predictions_table %}
+    </table>
+</div>
+{% endblock %}

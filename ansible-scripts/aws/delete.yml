@@ -1,0 +1,10 @@
+---
+- include_tasks: init.yml
+
+- name: Deleting instance
+  cloudformation:
+    aws_access_key: "{{ access_key }}"
+    aws_secret_key: "{{ secret_key }}"
+    stack_name: "{{ name }}"
+    region: "{{ region }}"
+    state: "absent"

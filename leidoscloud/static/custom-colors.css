@@ -1,0 +1,21 @@
+/* For the Nav Bar */
+.bg-dark {
+    background-color: #850F88 !important;
+}
+
+/* For the header of the table on the main page */
+.table .thead-dark th {
+    background-color: #502265;
+    border-color: #502265;
+}
+
+/* Used in the "Status:" text. Should be quite muted! Almost black */
+.text-muted {
+    color: #996bbf !important;
+}
+
+/* For cloudsurf buttons */
+.btn-primary {
+    background-color: #502265;
+    border-color: #502265;
+}

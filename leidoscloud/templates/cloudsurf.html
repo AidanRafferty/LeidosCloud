@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title_block %}
+CloudSurf Now
+{% endblock %}
+
+{% block heading_block %}
+CloudSurf Now
+{% endblock %}
+
+{% block body_block %}
+
+<h5>Choose a cloud platform that suits you</h5>
+<div class="row">
+    {% for api in apis %}
+    <div class="col-md-4">
+        <div class="card mb-4 box-shadow">
+            <img class="card-img-top" src="{% static 'images/' %}{{ api.name }}.png" alt="{{ api.name }} logo" />
+            <div class="card-body">
+                <div class="card text-center">
+                    <a href="{% url api.name %}" class="btn btn-primary cloudsurf {{ api.name }}">CloudSurf to
+                        {{ api.long_name }}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

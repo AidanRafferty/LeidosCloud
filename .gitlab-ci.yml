@@ -1,0 +1,27 @@
+---
+stages:
+  - install_deps
+  - test
+  - Django_tests
+
+install_deps:
+  stage: install_deps
+  script:
+    - sudo apt-get update -qy
+    - sudo apt-get install -y python3 python3-pip docker.io
+    - pip3 install coverage black yamllint
+    - pip3 install -r leidoscloud/requirements.txt
+
+Django_tests:
+  stage: Django_tests
+  script:
+    - python3 -m black leidoscloud/ --check
+    - "python3 -m yamllint ansible-scripts/ -d '{extends: relaxed, rules: {line-length: disable}}' -s"
+    - python3 -m coverage run --source='.' leidoscloud/manage.py test leidoscloud
+    - python3 -m coverage html
+    - python3 -m coverage report
+  artifacts:
+    paths:
+      - htmlcov/
+    expire_in: 1 day
+  coverage: '/^TOTAL.+?(\d+\%)$/'

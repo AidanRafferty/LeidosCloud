@@ -1,0 +1,189 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Leidos Cloud stack' # Adapted from https://github.com/trailofbits/algo
+Parameters:
+  InstanceTypeParameter:
+    Type: String
+    Default: t2.micro
+  PublicSSHKeyParameter:
+    Type: String
+  ImageIdParameter:
+    Type: String
+  EbsEncrypted:
+    Type: String
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 172.16.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  VPCIPv6:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      AmazonProvidedIpv6CidrBlock: true
+      VpcId: !Ref VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 172.16.254.0/23
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  Route:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - InternetGateway
+      - RouteTable
+      - VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  RouteIPv6:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - InternetGateway
+      - RouteTable
+      - VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationIpv6CidrBlock: "::/0"
+      GatewayId: !Ref InternetGateway
+
+  SubnetIPv6:
+    Type: AWS::EC2::SubnetCidrBlock
+    DependsOn:
+      - RouteIPv6
+      - VPC
+      - VPCIPv6
+    Properties:
+      Ipv6CidrBlock:
+        "Fn::Join":
+          - ""
+          - - !Select [0, !Split [ "::", !Select [0, !GetAtt VPC.Ipv6CidrBlocks] ]]
+            - "::dead:beef/64"
+      SubnetId: !Ref Subnet
+
+  RouteSubnet:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    DependsOn:
+      - RouteTable
+      - Subnet
+      - Route
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref Subnet
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn:
+      - Subnet
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Open SSH, HTTP, HTTPS
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SubnetIPv6
+      - Subnet
+      - InstanceSecurityGroup
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+            /home/ubuntu/.ssh/authorized_keys:
+              content:
+                Ref: PublicSSHKeyParameter
+              mode: "000644"
+              owner: "ubuntu"
+              group: "ubuntu"
+    Properties:
+      InstanceType:
+        Ref: InstanceTypeParameter
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            VolumeSize: 8
+            Encrypted: !Ref EbsEncrypted
+      InstanceInitiatedShutdownBehavior: terminate
+      SecurityGroupIds:
+        - Ref: InstanceSecurityGroup
+      ImageId:
+        Ref: ImageIdParameter
+      SubnetId: !Ref Subnet
+      Ipv6AddressCount: 1
+      UserData:
+        "Fn::Base64":
+          !Sub |
+            #!/bin/bash -xe
+            apt-get update
+            apt-get -y install python-pip
+            pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+            cfn-init -v --stack ${AWS::StackName} --resource EC2Instance --region ${AWS::Region}
+            cfn-signal -e $? --stack ${AWS::StackName} --resource EC2Instance --region ${AWS::Region}
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref EC2Instance
+    DependsOn:
+      - EC2Instance
+      - VPCGatewayAttachment
+
+Outputs:
+  ElasticIP:
+    Value: !GetAtt [EC2Instance, PublicIp]

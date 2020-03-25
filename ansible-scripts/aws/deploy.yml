@@ -1,0 +1,39 @@
+---
+- include_tasks: init.yml
+
+# https://github.com/trailofbits/algo provided many of these otherwise very difficult to discover constants
+- name: Locating official AMI for region
+  ec2_ami_info:
+    aws_access_key: "{{ access_key }}"
+    aws_secret_key: "{{ secret_key }}"
+    owners: "099720109477"
+    region: "{{ region }}"
+    filters:
+      name: "ubuntu/images/hvm-ssd/ubuntu-eoan-19.10-amd64-server-*"
+  register: ami_search
+
+- name: Setting the AMI id as a fact
+  set_fact:
+    ami_image: "{{ (ami_search.images | sort(attribute='creation_date') | last)['image_id'] }}"
+
+- name: Deploying the template
+  cloudformation:
+    aws_access_key: "{{ access_key }}"
+    aws_secret_key: "{{ secret_key }}"
+    stack_name: "{{ name }}"
+    state: "present"
+    region: "{{ region }}"
+    template: "{{ playbook_dir }}/aws/Stack.yaml"
+    template_parameters:
+      InstanceTypeParameter: "t2.micro"
+      PublicSSHKeyParameter: "{{ lookup('file', '{{ playbook_dir }}/public.pem.pub') }}"
+      ImageIdParameter: "{{ ami_image }}"
+      EbsEncrypted: "false"
+  register: stack
+  until: stack.stack_outputs is defined
+  retries: 40
+
+- name: Getting IP of instance
+  set_fact:
+    cloud_instance_ip: "{{ stack.stack_outputs.ElasticIP }}"
+    ansible_ssh_user: ubuntu

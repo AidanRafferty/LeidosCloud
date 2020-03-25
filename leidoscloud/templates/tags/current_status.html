@@ -1,0 +1,15 @@
+<h3><span class="text-muted">Status:</span> <span class="date" style="display:none">date</span><span class="status">Unable to read log file!</span></h3>
+<script>
+    async function updateStatus() {
+        const statusJSON = await fetch('/status.json');
+        const status = await statusJSON.json();
+        document.querySelector('.date').innerHTML = status.date;
+        if (status.status) {
+            document.querySelector('.status').innerHTML = status.status;
+        }
+    }
+
+    window.setInterval(updateStatus, 7000);
+    updateStatus();
+
+</script>

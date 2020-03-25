@@ -1,0 +1,32 @@
+---
+- name: Installing aws requirements
+  pip:
+    name:
+      - boto>=2.5
+      - boto3
+    state: latest
+    executable: "{{ pip | default('pip3') }}"
+
+# This could be done a lot cleaner! Some kind of ansible loop
+- name: Finding secret key in database
+  retries: 2
+  shell: sqlite3 db.sqlite3 "SELECT "value" FROM "main"."leidoscloud_key" WHERE "name" LIKE '%secret_key%' ESCAPE '\' AND "provider_id" LIKE '%{{ provider_id.stdout }}%' ESCAPE '\';"
+  register: secret_key
+  until: secret_key is succeeded
+  args:
+    chdir: "{{ playbook_dir }}/../leidoscloud/"
+
+- name: Finding access key in Database
+  retries: 2
+  shell: sqlite3 db.sqlite3 "SELECT "value" FROM "main"."leidoscloud_key" WHERE "name" LIKE '%access_key%' ESCAPE '\' AND "provider_id" LIKE '%{{ provider_id.stdout }}%' ESCAPE '\';"
+  register: access_key
+  until: access_key is succeeded
+  args:
+    chdir: "{{ playbook_dir }}/../leidoscloud/"
+
+- name: Setting facts
+  set_fact:
+    secret_key: "{{ secret_key.stdout }}"
+    access_key: "{{ access_key.stdout }}"
+    name: "leidoscloud"
+    region: "eu-west-1" # Hardcoded but theoretically could be a Django based setting

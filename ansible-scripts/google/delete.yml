@@ -1,0 +1,21 @@
+---
+- include_tasks: init.yml
+
+- name: Deleting instance
+  gcp_compute_instance:
+    auth_kind: serviceaccount
+    service_account_file: "{{ credentials_file_path }}"
+    project: "{{ project_id }}"
+    name: "{{ project_name }}"
+    zone: "europe-west4-a"
+    machine_type: "f1-micro"
+    state: absent
+
+- name: Deleting external IP
+  gcp_compute_address:
+    auth_kind: serviceaccount
+    service_account_file: "{{ credentials_file_path }}"
+    project: "{{ project_id }}"
+    name: "{{ project_name }}"
+    region: "europe-west4"
+    state: absent

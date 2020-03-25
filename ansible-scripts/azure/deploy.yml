@@ -1,0 +1,27 @@
+---
+- include_tasks: init.yml
+
+- name: Deploying to Azure
+  azure_rm_deployment:
+    state: present
+    deployment_name: "cloud"
+    template: "{{ lookup('file', 'azure.json') }}"
+    secret: "{{ secret }}"
+    tenant: "{{ tenant }}"
+    client_id: "{{ client_id }}"
+    subscription_id: "{{ subscription_id }}"
+    resource_group_name: "{{ project_name }}"
+    location: "{{ region }}"
+    parameters:
+      sshKeyData:
+        value: "{{ lookup('file', 'public.pem.pub') }}"
+      vmSize:
+        value: "Standard_B1S"
+      imageReferenceSku:
+        value: "19.10-DAILY"
+  register: azure_rm_deployment
+
+- name: Getting IP
+  set_fact:
+    cloud_instance_ip: "{{ azure_rm_deployment.deployment.outputs.publicIPAddresses.value }}"
+    ansible_ssh_user: ubuntu

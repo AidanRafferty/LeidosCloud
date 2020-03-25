@@ -1,0 +1,73 @@
+# Much of this is adapted from https://github.com/trailofbits/algo
+---
+- include_tasks: init.yml
+
+- name: Configuring network
+  gcp_compute_network:
+    auth_kind: serviceaccount
+    service_account_file: "{{ credentials_file_path }}"
+    project: "{{ project_id }}"
+    name: "{{ project_name }}"
+    auto_create_subnetworks: true
+    routing_config:
+      routing_mode: REGIONAL
+  register: gcp_compute_network
+
+- name: Configuring firewall
+  gcp_compute_firewall:
+    auth_kind: serviceaccount
+    service_account_file: "{{ credentials_file_path }}"
+    project: "{{ project_id }}"
+    name: "{{ project_name }}"
+    network: "{{ gcp_compute_network }}"
+    direction: INGRESS
+    allowed:
+      - ip_protocol: tcp
+        ports:
+          - '22'
+          - '80'
+          - '443'
+      - ip_protocol: icmp
+
+- name: Allocating IP
+  gcp_compute_address:
+    auth_kind: serviceaccount
+    service_account_file: "{{ credentials_file_path }}"
+    project: "{{ project_id }}"
+    name: "{{ project_name }}"
+    region: "europe-west4"
+  register: gcp_compute_address
+
+- name: Setting External IP as a fact
+  set_fact:
+    external_ip: "{{ gcp_compute_address.address }}"
+
+- name: Creating instance
+  gcp_compute_instance:
+    auth_kind: serviceaccount
+    service_account_file: "{{ credentials_file_path }}"
+    project: "{{ project_id }}"
+    name: "{{ project_name }}"
+    zone: "europe-west4-a"
+    machine_type: "f1-micro"
+    disks:
+      - auto_delete: true
+        boot: true
+        initialize_params:
+          source_image: "projects/ubuntu-os-cloud/global/images/family/ubuntu-1910"
+    metadata:
+      ssh-keys: "ubuntu:{{ lookup('file', 'public.pem.pub') }}"
+      user-data: |
+        #!/bin/bash
+        sudo apt-get remove -y --purge sshguard
+    network_interfaces:
+      - network: "{{ gcp_compute_network }}"
+        access_configs:
+          - name: "{{ project_id }}"
+            nat_ip: "{{ gcp_compute_address|default(None) }}"
+            type: ONE_TO_ONE_NAT
+  register: gcp_compute_instance
+
+- set_fact:
+    cloud_instance_ip: "{{ gcp_compute_instance.networkInterfaces[0].accessConfigs[0].natIP }}"
+    ansible_ssh_user: ubuntu

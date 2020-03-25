@@ -1,0 +1,113 @@
+-
+  hosts: localhost
+  become: false
+  tasks:
+    -
+      name: 'Installing SSH key generation requirements'
+      delegate_to: localhost
+      become: false
+      pip:
+        state: latest
+        name:
+          - pyOpenSSL
+          - jinja2==2.8
+          - segno
+        executable: '{{ pip | default(''pip3'') }}'
+    -
+      name: 'Generating the SSH private key'
+      openssl_privatekey:
+        path: '{{ playbook_dir }}/private.pem'
+        size: 2048
+        mode: '0600'
+        type: RSA
+    -
+      name: 'Generating the SSH public key'
+      openssl_publickey:
+        path: '{{ playbook_dir }}/public.pem.pub'
+        privatekey_path: '{{ playbook_dir }}/private.pem'
+        format: OpenSSH
+    -
+      # This feels nimble
+      name: Finding ID of cloud provider in database
+      retries: 10
+      shell: sqlite3 db.sqlite3 "SELECT "_rowid_" FROM "main"."leidoscloud_api" WHERE "name" LIKE '%{{ target_host }}%' ESCAPE '\' ORDER BY "_rowid_" ASC LIMIT 0, 49999;"
+      register: provider_id
+      until: provider_id is succeeded
+      args:
+        chdir: "{{ playbook_dir }}/../leidoscloud/"
+    -
+      include_tasks: '{{ playbook_dir }}/{{ target_host }}/deploy.yml'
+    -
+      name: 'Adding the server to an inventory group'
+      add_host:
+        name: '{{ cloud_instance_ip }}'
+        groups: cloudhost
+        ansible_connection: ssh
+        ansible_ssh_user: '{{ ansible_ssh_user }}'
+        ansible_python_interpreter: /usr/bin/python3
+    -
+      name: 'Setting additional variables for the server'
+      add_host:
+        name: '{{ cloud_instance_ip }}'
+        ansible_ssh_private_key_file: '{{ playbook_dir }}/private.pem'
+    -
+      name: 'Waiting for SSH to be ready'
+      wait_for_connection:
+        delay: 10
+        sleep: 5
+        timeout: 2000
+      delegate_to: '{{ cloud_instance_ip }}'
+-
+  hosts: cloudhost
+  gather_facts: false
+  tasks:
+    -
+      name: 'Copying self to server'
+      synchronize:
+        src: ../../
+        dest: '/home/{{ ansible_ssh_user }}/storm/'
+        rsync_opts:
+          - '--exclude=.git'
+          - '--exclude=__pycache__'
+    -
+      name: 'Copying ansible configuration file to directory where it is read'
+      copy:
+        remote_src: yes
+        src: '/home/{{ ansible_ssh_user }}/storm/ansible.cfg'
+        dest: '/home/{{ ansible_ssh_user }}/storm/leidoscloud/ansible.cfg'
+    -
+      name: 'Updating apt cache and install pip as well as sqlite3'
+      become: true
+      retries: 10
+      delay: 5
+      register: install_pip
+      until: install_pip is not failed
+      apt:
+        update_cache: yes
+        name: '{{ packages }}'
+      vars:
+        packages:
+          - python3-pip
+          - sqlite3
+    -
+      name: 'Installing Django requirements'
+      retries: 10
+      register: install_requirements
+      until: install_requirements is not failed
+      pip:
+        requirements: '/home/{{ ansible_ssh_user }}/storm/leidoscloud/requirements.txt'
+        executable: pip3
+    -
+      name: 'Installing Gunicorn and Ansible'
+      pip:
+        state: latest
+        name:
+          - gunicorn
+          - ansible
+        executable: pip3
+    -
+      name: 'Installing caddy from ansible galaxy'
+      retries: 10
+      raw: '/home/{{ ansible_ssh_user }}/.local/bin/ansible-galaxy install samdoran.caddy'
+-
+  import_playbook: '{{ playbook_dir }}/cloud.yml'

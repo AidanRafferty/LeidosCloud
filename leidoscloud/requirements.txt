@@ -1,0 +1,4 @@
+Django==2.2.6
+django_cron==0.5.1
+requests==2.22.0
+django-mutpy==0.1.2

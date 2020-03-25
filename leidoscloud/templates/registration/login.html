@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title_block %}
+Login
+{% endblock %}
+
+
+{% block body_block %}
+<div class="pt-2 d-flex justify-content-center align-items-center">
+    <div class="card bg-light" style="width: 33.33333%">
+        <div class="card-header">Welcome</div>
+        <div class="card-body">
+            {% for key, error in form.errors.items %}
+            <div class="alert alert-warning" role="alert">
+                {{ error|escape }}
+            </div>
+            {% endfor %}
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="id_username">Username:</label>
+                    <input class="form-control" type="text" name="username" autofocus="" required="" id="id_username">
+                </div>
+                <div class="form-group">
+                    <label for="id_password">Password:</label>
+                    <input class="form-control" type="password" name="password" required="" id="id_password">
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

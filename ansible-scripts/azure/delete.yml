@@ -1,0 +1,13 @@
+---
+- include_tasks: init.yml
+
+- name: Deleting Azure deployment
+  azure_rm_deployment:
+    state: absent
+    deployment_name: "cloud"
+    secret: "{{ secret }}"
+    tenant: "{{ tenant }}"
+    client_id: "{{ client_id }}"
+    subscription_id: "{{ subscription_id }}"
+    resource_group_name: "{{ project_name }}"
+    location: "{{ region }}"

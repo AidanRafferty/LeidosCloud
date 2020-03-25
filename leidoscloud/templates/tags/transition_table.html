@@ -1,0 +1,25 @@
+{% load leidoscloud_template_tags %}
+<!--This template tag will display the table of transitions
+after having the headings and data passed into it -->
+<!-- Display the field headings -->
+<thead class="thead-dark">
+    <tr>
+        {% for h in headings %}
+        <th scope="col">{{h}}</th>
+        {% endfor %}
+    </tr>
+</thead>
+<tbody>
+    {% for d in data %}
+    <tr>
+        <th scope="row">{{d.id}}</th>
+        <td>{{d.user}}</td>
+        <td>{{d.start_provider}}</td>
+        <td>{{d.end_provider}}</td>
+        <td>{{d.start_time}}</td>
+        <td>{{d.end_time}}</td>
+        <td>{{d.succeeded}}</td>
+        <td>{{d.deleted}}</td>
+    </tr>
+    {% endfor %}
+</tbody>

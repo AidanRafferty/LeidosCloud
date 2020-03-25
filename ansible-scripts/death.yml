@@ -1,0 +1,51 @@
+---
+-
+  become: false
+  hosts: localhost
+  tasks:
+    -
+      # This feels nimble
+      name: Finding second to last entry to mark as deleted
+      retries: 10
+      shell: sqlite3 db.sqlite3 "SELECT "_rowid_" FROM "main"."leidoscloud_transition" ORDER BY "_rowid_" desc LIMIT 1, 1"
+      register: rowid_to_mark_deleted
+      until: rowid_to_mark_deleted is succeeded
+      args:
+        chdir: "{{ playbook_dir }}/../leidoscloud/"
+    -
+      # This feels nimble
+      name: Finding ID of cloud provider in database
+      retries: 10
+      shell: sqlite3 db.sqlite3 "SELECT "_rowid_" FROM "main"."leidoscloud_api" WHERE "name" LIKE '%{{ to_delete_host }}%' ESCAPE '\' ORDER BY "_rowid_" ASC LIMIT 0, 49999;"
+      register: provider_id
+      until: provider_id is succeeded
+      args:
+        chdir: "{{ playbook_dir }}/../leidoscloud/"
+    -
+      name: "Loading the SSH private key"
+      openssl_privatekey:
+        mode: "0600"
+        path: "{{ playbook_dir }}/private.pem"
+        size: 2048
+        type: RSA
+    -
+      name: "Loading the SSH public key"
+      openssl_publickey:
+        format: OpenSSH
+        path: "{{ playbook_dir }}/public.pem.pub"
+        privatekey_path: "{{ playbook_dir }}/private.pem"
+    -
+      name: Waiting for previous scripts to finish before deleting old hosts
+      pause:
+        seconds: 15 # Ensure the old host has finished before beginning deletion
+    -
+      include_tasks: "{{ playbook_dir }}/{{ to_delete_host }}/delete.yml"
+    -
+      # This feels nimble
+      name: Marking as deleted
+      retries: 10
+      register: delete_marking
+      until: delete_marking is succeeded
+      shell: "sqlite3 db.sqlite3 \"UPDATE \"main\".\"leidoscloud_transition\" SET \"deleted\"=1 WHERE \"_rowid_\"='{{ rowid_to_mark_deleted.stdout }}';\""
+      args:
+        chdir: "{{ playbook_dir }}/../leidoscloud/"

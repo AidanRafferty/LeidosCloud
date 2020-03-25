@@ -1,0 +1,87 @@
+---
+- name: Installing Azure requirements
+  pip:
+    name:
+      - packaging
+      - requests[security]
+      - azure-cli-core==2.0.35
+      - azure-cli-nspkg==3.0.2
+      - azure-common==1.1.11
+      - azure-mgmt-iothub==0.9.0
+      - azure-mgmt-automation==0.1.1
+      - azure-mgmt-authorization==0.51.1
+      - azure-mgmt-batch==5.0.1
+      - azure-mgmt-cdn==3.0.0
+      - azure-mgmt-compute==4.4.0
+      - azure-mgmt-containerinstance==1.4.0
+      - azure-mgmt-containerregistry==2.0.0
+      - azure-mgmt-containerservice==4.4.0
+      - azure-mgmt-dns==2.1.0
+      - azure-mgmt-keyvault==1.1.0
+      - azure-mgmt-marketplaceordering==0.1.0
+      - azure-mgmt-monitor==0.5.2
+      - azure-mgmt-network==2.3.0
+      - azure-mgmt-nspkg==2.0.0
+      - azure-mgmt-redis==5.0.0
+      - azure-mgmt-resource==2.1.0
+      - azure-mgmt-rdbms==1.4.1
+      - azure-mgmt-servicebus==0.5.3
+      - azure-mgmt-sql==0.10.0
+      - azure-mgmt-storage==3.1.0
+      - azure-mgmt-trafficmanager==0.50.0
+      - azure-mgmt-web==0.41.0
+      - azure-nspkg==2.0.0
+      - azure-storage==0.35.1
+      - msrest==0.6.10
+      - msrestazure==0.5.0
+      - azure-keyvault==1.0.0a1
+      - azure-graphrbac==0.40.0
+      - azure-mgmt-cosmosdb==0.5.2
+      - azure-mgmt-hdinsight==0.1.0
+      - azure-mgmt-devtestlabs==3.0.0
+      - azure-mgmt-loganalytics==0.2.0
+    state: latest
+    executable: "{{ pip | default('pip3') }}"
+
+
+# This could be done a lot cleaner! Some kind of ansible loop
+- name: Finding secret in Database
+  retries: 2
+  shell: sqlite3 db.sqlite3 "SELECT "value" FROM "main"."leidoscloud_key" WHERE "name" LIKE '%secret%' ESCAPE '\' AND "provider_id" LIKE '%{{ provider_id.stdout }}%' ESCAPE '\';"
+  register: secret
+  until: secret is succeeded
+  args:
+    chdir: "{{ playbook_dir }}/../leidoscloud/"
+
+- name: Finding tenant in Database
+  retries: 2
+  shell: sqlite3 db.sqlite3 "SELECT "value" FROM "main"."leidoscloud_key" WHERE "name" LIKE '%tenant%' ESCAPE '\' AND "provider_id" LIKE '%{{ provider_id.stdout }}%' ESCAPE '\';"
+  register: tenant
+  until: tenant is succeeded
+  args:
+    chdir: "{{ playbook_dir }}/../leidoscloud/"
+
+- name: Finding client_id in Database
+  retries: 2
+  shell: sqlite3 db.sqlite3 "SELECT "value" FROM "main"."leidoscloud_key" WHERE "name" LIKE '%client_id%' ESCAPE '\' AND "provider_id" LIKE '%{{ provider_id.stdout }}%' ESCAPE '\';"
+  register: client_id
+  until: client_id is succeeded
+  args:
+    chdir: "{{ playbook_dir }}/../leidoscloud/"
+
+- name: Finding subscription_id in Database
+  retries: 2
+  shell: sqlite3 db.sqlite3 "SELECT "value" FROM "main"."leidoscloud_key" WHERE "name" LIKE '%subscription_id%' ESCAPE '\' AND "provider_id" LIKE '%{{ provider_id.stdout }}%' ESCAPE '\';"
+  register: subscription_id
+  until: subscription_id is succeeded
+  args:
+    chdir: "{{ playbook_dir }}/../leidoscloud/"
+
+- name: Setting facts
+  set_fact:
+    project_name: "leidoscloud"
+    region: "ukwest"
+    secret: "{{ secret.stdout }}"
+    tenant: "{{ tenant.stdout }}"
+    client_id: "{{ client_id.stdout }}"
+    subscription_id: "{{ subscription_id.stdout }}"
